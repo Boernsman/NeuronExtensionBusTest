@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
     QCommandLineOption addressOption(QStringList() << "a" << "address", "Set address, [1, 254] default 15", "address");
     parser.addOption(addressOption);
 
-    QCommandLineOption requestCountOption(QStringList() << "c" << "count", "Set request count, default 100", "count");
+    QCommandLineOption requestCountOption(QStringList() << "c" << "count", "Set request count, default 1000", "count");
     parser.addOption(requestCountOption);
 
 
@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
 
     QElapsedTimer elapsedTimer;
 
-    int requestCount = 100;
+    int requestCount = 1000;
     if (parser.isSet(requestCountOption)) {
         bool ok;
         requestCount = parser.value(requestCountOption).toInt(&ok);
@@ -119,8 +119,6 @@ int main(int argc, char *argv[])
     }
 
     modbus_t *mb;
-    uint16_t tab_reg[32];
-
     mb = modbus_new_rtu(portName.toUtf8(), baudrate, parity, 8, 1);
     if (mb == nullptr) {
         qDebug() << "Could not create modbus rtu";
@@ -135,9 +133,13 @@ int main(int argc, char *argv[])
     }
 
     int failureCount = 0;
+    int registerCount = 5;
+    QVector<uint16_t> data;
+    data.resize(requestCount);
+
+    elapsedTimer.start();
     for (int i=0; i < requestCount; i++) {
-        /* Read 5 registers from the address 0 */
-        if (modbus_read_registers(mb, 0, 5, tab_reg) == -1) {
+        if (modbus_read_registers(mb, 0, registerCount, data.data()) == -1) {
             failureCount++;
             qDebug() << "Error" << modbus_strerror(errno);
         }
