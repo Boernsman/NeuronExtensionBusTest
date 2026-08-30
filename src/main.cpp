@@ -1,9 +1,12 @@
+#include <algorithm>
 #include <boost/program_options.hpp>
 #include <chrono>
 #include <filesystem>
 #include <iostream>
 #include <modbus.h>
+#include <stdexcept>
 #include <string>
+#include <system_error>
 #include <termios.h>
 #include <vector>
 
@@ -11,27 +14,53 @@
 
 namespace po = boost::program_options;
 
-void print_available_ports() {
-  std::cout << "Available serial ports:" << std::endl;
-  for (const auto &entry : std::filesystem::directory_iterator("/dev")) {
+std::vector<std::string> available_ports() {
+  std::vector<std::string> ports;
+  // The error_code overload reports a missing or unreadable /dev by returning
+  // the end iterator instead of throwing.
+  std::error_code ec;
+  for (const auto &entry : std::filesystem::directory_iterator("/dev", ec)) {
     const std::string port = entry.path();
     if (port.find("ttyS") != std::string::npos ||
         port.find("ttyNS") != std::string::npos ||
         port.find("ttyAMA") != std::string::npos ||
         port.find("ttyUSB") != std::string::npos ||
         port.find("ttyACM") != std::string::npos) {
-      std::cout << "  " << port << std::endl;
+      ports.push_back(port);
     }
   }
+  std::sort(ports.begin(), ports.end());
+  return ports;
 }
 
 std::string select_serial_port() {
+  const std::vector<std::string> ports = available_ports();
+  if (ports.empty()) {
+    throw std::runtime_error("No serial ports found in /dev.");
+  }
+
   while (true) {
-    print_available_ports();
-    std::string port;
+    std::cout << "Available serial ports:" << std::endl;
+    for (const auto &port : ports) {
+      std::cout << "  " << port << std::endl;
+    }
+
     std::cout << "Select the serial port:" << std::endl;
-    std::cin >> port;
-    return port;
+    std::string port;
+    if (!(std::cin >> port)) {
+      throw std::runtime_error("No serial port selected.");
+    }
+
+    // Accept anything that exists, so devices the scan above does not know
+    // about (or a /dev/serial/by-id symlink) can still be used.
+    std::error_code ec;
+    if (std::find(ports.begin(), ports.end(), port) != ports.end() ||
+        std::filesystem::exists(port, ec)) {
+      return port;
+    }
+
+    std::cerr << "'" << port << "' is not an available serial port."
+              << std::endl;
   }
 }
 
@@ -72,11 +101,11 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  if (port_name.empty()) {
-    port_name = select_serial_port();
-  }
-
   try {
+    if (port_name.empty()) {
+      port_name = select_serial_port();
+    }
+
     char parity_char = 'N';
     if (parity == "even") {
       parity_char = 'E';

@@ -15,7 +15,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-    - name: Clang format
-    - name: build
-    - name: Upload build
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang-format \
+            cmake \
+            g++ \
+            libboost-program-options-dev \
+            libgtest-dev \
+            libmodbus-dev \
+            pkg-config
+
+      - name: Clang format
+        run: |
+          find include src tests -type f \( -name '*.cpp' -o -name '*.h' \) \
+            -print0 | xargs -0 clang-format --dry-run --Werror
+
+      - name: Build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: neuron_extension_bus_test-${{ github.sha }}
+          path: |
+            build/neuron_extension_bus_test
+            build/neuron_extension_bus_test_tests
+          if-no-files-found: error
+          retention-days: 14
