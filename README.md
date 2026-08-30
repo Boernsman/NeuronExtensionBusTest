@@ -1,5 +1,7 @@
 # Neuron Extension Bus Test Application
 
+[![CI](https://github.com/Boernsman/NeuronExtensionBusTest/actions/workflows/ci.yml/badge.svg)](https://github.com/Boernsman/NeuronExtensionBusTest/actions/workflows/ci.yml)
+
 This project is a command-line utility written in C++20 to test Modbus communication over a serial connection. It allows the user to select serial ports, configure baud rates, set parity, specify Modbus slave addresses, and perform multiple register reads.
 
 ## Features
@@ -8,24 +10,66 @@ This project is a command-line utility written in C++20 to test Modbus communica
 * Allows user to select serial ports interactively or via command line arguments.
 * Supports configurable baud rate, parity, and Modbus slave address.
 * Uses libmodbus to communicate with Modbus devices.
+* Measures the elapsed time and error count over a configurable number of requests.
 * Provides a command-line interface for ease of use.
 
 ## Requirements
 
-* Ubuntu 22.04 or later.
-* CMake 3.10 or higher.
-* libmodbus (install using apt-get install libmodbus-dev).
-* C++20 compatible compiler (e.g., GCC 14).
+* Linux (Ubuntu 22.04 or later). The port scan reads `/dev`, so the tool is Linux-only.
+* CMake 3.20 or higher.
+* A C++20 compatible compiler (GCC 11 or newer).
+* pkg-config.
+* libmodbus.
+* Boost.ProgramOptions.
+* GoogleTest (only needed to build the unit tests).
 
+On Debian/Ubuntu:
+
+```
+sudo apt-get install cmake g++ pkg-config libmodbus-dev \
+    libboost-program-options-dev libgtest-dev
+```
 
 ## Building the project
+
+```
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+```
+
+The binaries are written to `build/`:
+
+* `build/neuron_extension_bus_test` - the command line utility.
+* `build/neuron_extension_bus_test_tests` - the unit tests.
+
+### Running the tests
+
+```
+ctest --test-dir build --output-on-failure
+```
+
+### Building with Docker
+
+If you do not want to install the dependencies on your host, the provided
+`Dockerfile` builds the project (and runs the tests) inside a container:
+
+```
+docker build -t neuron-extension-bus-test .
+```
 
 ## Running the Application
 
 You can run the application using the following command:
 
 ```
-./neuron_extension_bus_test [options]
+./build/neuron_extension_bus_test [options]
+```
+
+Your user needs read/write access to the serial port. On most distributions
+this means being a member of the `dialout` group:
+
+```
+sudo usermod -aG dialout $USER
 ```
 
 ### Command Line Options
@@ -44,10 +88,13 @@ You can run the application using the following command:
 
 If no serial port is provided, the program will prompt the user to select from the available ports.
 
+Each request reads 5 holding registers starting at address 0. After all requests have been
+sent, the total elapsed time and the number of failed requests are printed.
+
 ## Example Usage
 
 ```
-./neuron_extension_bus_test -s /dev/ttyUSB0 -b 115200 -p even -a 10 -c 500
+./build/neuron_extension_bus_test -s /dev/ttyUSB0 -b 115200 -p even -a 10 -c 500
 ```
 
 ## License
